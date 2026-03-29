@@ -11,7 +11,11 @@ import SwiftUI
 struct HolaMatesApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            NavigationStack {
+                UpdateGateView {
+                    ContentView()
+                }
+            }
         }
     }
 }
