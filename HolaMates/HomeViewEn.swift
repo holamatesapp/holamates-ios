@@ -170,7 +170,7 @@ Improve your mental math in a fun and engaging way, and discover what you’re c
             }
             .padding(.top, 24)   // 👈 separación respecto al texto
             NavigationLink {
-                RankingsViewEn()
+                RankingsView()
             } label: {
                 rankingButton(text: "🏆 Ranking")
             }
@@ -217,7 +217,7 @@ and discover everything you are capable of.
                 .padding(.top, 24)   // 👈 separación respecto al texto
 
                 NavigationLink {
-                    RankingsViewEn()   // ✅ BIEN
+                    RankingsView()   // ✅ BIEN
                 } label: {
                     rankingButton(text: "🏆 Ranking")
                 }
@@ -780,23 +780,23 @@ struct GameSelectorViewEn: View {
 
                 VStack(spacing: 18) {
 
-                    NavigationLink(destination: Suma10ViewEn()){
+                    NavigationLink(destination: Suma10View()){
                         selectorButton("▶ Sum 10", .blue)
                     }
 
-                    NavigationLink(destination: SumasViewEn()) {
+                    NavigationLink(destination: SumasView()) {
                         selectorButton("▶ Additions", .orange)
                     }
 
-                    NavigationLink(destination: RestasViewEn()) {
+                    NavigationLink(destination: RestasView()) {
                         selectorButton("▶ Subtractions", .purple)
                     }
 
-                    NavigationLink(destination: TablasViewEn()) {
+                    NavigationLink(destination: TablasView()) {
                         selectorButton("▶ Multiplication", .green)
                     }
 
-                    NavigationLink(destination: DivisionesViewEn()) {
+                    NavigationLink(destination: DivisionesView()) {
                         selectorButton("▶ Division", .red)
                     }
                 }

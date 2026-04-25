@@ -62,6 +62,57 @@ final class RankingManager {
     }
 
     private func storageKey(for challenge: ChallengeID) -> String {
-        "ranking_\(challenge.rawValue)"
+
+        let raw = challenge.rawValue
+
+        // ✅ SUMA10 (global)
+        if raw.contains("suma10") {
+            return "ranking_suma10"
+        }
+
+        // ✅ SUMAS (global)
+        if raw.contains("sumas") {
+            return "ranking_sumas"
+        }
+
+        // ✅ RESTAS (global)
+        if raw.contains("restas") {
+            return "ranking_restas"
+        }
+
+        // ✅ TABLAS (por número)
+        if raw.contains("tablas") {
+
+            if raw.contains("_all_") {
+                return "ranking_tablas_all"
+            }
+
+            for i in 2...9 {
+                if raw.contains("_\(i)_") {
+                    return "ranking_tablas_\(i)"
+                }
+            }
+
+            return "ranking_tablas_all"
+        }
+
+        // ✅ DIVISIONES (por divisor)
+        if raw.contains("divisiones") {
+
+            if raw.contains("_all_") {
+                return "ranking_divisiones_all"
+            }
+
+            for i in 1...9 {
+                if raw.contains("_\(i)_") {
+                    return "ranking_divisiones_\(i)"
+                }
+            }
+
+            return "ranking_divisiones_all"
+        }
+
+        // fallback (por si acaso)
+        return "ranking_\(raw)"
     }
 }

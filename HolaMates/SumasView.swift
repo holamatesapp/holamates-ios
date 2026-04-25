@@ -15,13 +15,33 @@ enum SumasLevel: String, CaseIterable {
     case hard = "Difícil"
 }
 
-enum SumasMode: String, CaseIterable {
-    case sin = "Sin llevada"
-    case con = "Con llevada"
-}
+
 
 
 struct SumasView: View {
+    
+    init() {
+        UISegmentedControl.appearance().selectedSegmentTintColor = UIColor.systemBlue
+
+        UISegmentedControl.appearance().setTitleTextAttributes(
+            [.foregroundColor: UIColor.white],
+            for: .selected
+        )
+
+        UISegmentedControl.appearance().setTitleTextAttributes(
+            [.foregroundColor: UIColor.white],
+            for: .normal
+        )
+
+        UISegmentedControl.appearance().backgroundColor = UIColor(
+            red: 24/255,
+            green: 34/255,
+            blue: 53/255,
+            alpha: 1
+        )
+    }
+    
+    
 
     @Environment(\.dismiss) private var dismiss
     
@@ -41,6 +61,9 @@ struct SumasView: View {
     @State private var endReason: GameEndReason? = nil
     @State private var timeProgress: Double = 0
     @State private var timeTimer: Timer? = nil
+    
+    @State private var canCloseGameOver: Bool = false
+    @State private var playerName: String = ""
 
 
     
@@ -62,9 +85,7 @@ struct SumasView: View {
     @State private var gameOverOpId: UUID? = nil
 
     // ℹ️ INFO
-    @State private var showInfo: Bool = false
 
-    @State private var mode: SumasMode = .sin
     @State private var level: SumasLevel = .normal
 
     // MARK: - Constantes
@@ -131,56 +152,39 @@ struct SumasView: View {
                             }
 
                             Spacer()
+                        }
 
-                            Button {
-                                showInfo = true
-                            } label: {
-                                Image(systemName: "info.circle")
-                                    .font(.title2)
-                                    .foregroundColor(.white.opacity(0.85))
+                        VStack(spacing: 0) {
+
+                            Image("imagen_sumas")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 60)
+                                .padding(.bottom, 20) // 👈 espacio icono → selector
+
+                            Picker("", selection: $level) {
+                                Text("1").tag(SumasLevel.initLevel)
+                                Text("2").tag(SumasLevel.easy)
+                                Text("3").tag(SumasLevel.normal)
+                                Text("4").tag(SumasLevel.hard)
                             }
+                            .pickerStyle(.segmented)
+                            .foregroundColor(.white)
+                            .disabled(running)
+                            .padding(.bottom, 16) // 👈 espacio selector → hits
                         }
 
-                        GeometryReader { geo in
-                            Text("Sumas")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                                .frame(maxWidth: geo.size.width * 0.8)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .frame(height: 44)
 
                         HStack(spacing: 8) {
-
-                            Picker("Modo", selection: $mode) {
-                                ForEach(SumasMode.allCases, id: \.self) { m in
-                                    Text(m.rawValue).tag(m)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .foregroundColor(.white)
-                            .disabled(running)
+                            Image("target")
+                                .resizable()
+                                .frame(width: 20, height: 20)
                             
-                         
-
-                            Picker("Nivel", selection: $level) {
-                                ForEach(SumasLevel.allCases, id: \.self) { lvl in                                    Text(lvl.rawValue).tag(lvl)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .foregroundColor(.white)
-                            .disabled(running)
+                            Text("\(hits)")
+                                .foregroundColor(.white)
+                                .fontWeight(.bold)
                         }
-
-
-
-                        Text("Aciertos: \(hits)")
-                            .foregroundColor(.gray)
-                            .padding(.bottom, 10)
+                        .padding(.bottom, 10)
                         
                         TimelineBar(
                             progress: timeProgress,
@@ -228,9 +232,7 @@ struct SumasView: View {
                 gameOverOverlay
             }
 
-            if showInfo {
-                            infoOverlay
-                        }
+
 
                         
                     }
@@ -381,40 +383,58 @@ struct SumasView: View {
         }
 
         func pairConLlevada() -> (Int, Int) {
-            // 80% con llevada, 20% sin (igual que tu JS)
-            let r = Double.random(in: 0...1)
-
-            if r < 0.8 {
-                var a = 1, b = 1
-                repeat {
-                    a = Int.random(in: 1...9)
-                    b = Int.random(in: 1...9)
-                } while (a + b) < 10
-                return (a, b)
-            } else {
-                return pairSinLlevada()
-            }
+            var a = 1, b = 1
+            repeat {
+                a = Int.random(in: 1...9)
+                b = Int.random(in: 1...9)
+            } while (a + b) < 10
+            return (a, b)
         }
 
-        let (a, b) = (mode == .con) ? pairConLlevada() : pairSinLlevada()
+        let (a, b): (Int, Int)
+
+        // 🔴 SOLO nivel difícil → con llevada
+        if level == .hard {
+            (a, b) = pairConLlevada()
+        } else {
+            // 🟢 resto → sin llevada
+            (a, b) = pairSinLlevada()
+        }
+
         return AdditionOp(a: a, b: b)
     }
     
   
 
 
+    private func currentChallengeID() -> ChallengeID {
+
+        switch level {
+
+        case .initLevel:
+            return .sumas_sin_iniciacion
+        case .easy:
+            return .sumas_sin_facil
+        case .normal:
+            return .sumas_sin_normal
+        case .hard:
+            return .sumas_con_dificil
+        }
+    }
+
+
     private func currentInterval() -> Double? {
+
         guard let startTime else { return nil }
 
         let elapsed = Date().timeIntervalSince(startTime) * 1000
-        if elapsed >= GAME_TIME { return nil }
+        let phase = Int(elapsed / STEP_TIME)
 
-        let speeds = LEVEL_SPEEDS[level] ?? []
-        guard !speeds.isEmpty else { return nil }
+        if phase >= 4 { return nil }
 
-        let phase = min(Int(elapsed / STEP_TIME), 3)
-        let index = min(phase, speeds.count - 1)
-        return speeds[index]
+        guard let speeds = LEVEL_SPEEDS[level] else { return nil }
+
+        return speeds[phase]
     }
 
 
@@ -540,7 +560,6 @@ struct SumasView: View {
             gameOverOpId = nil
         }
 
-        // 🏆 Ranking (idéntico a Suma10)
         let challenge = currentChallengeID()
         currentChallenge = challenge
 
@@ -551,32 +570,17 @@ struct SumasView: View {
 
         isNewNumberOne = ranking.first.map { hits >= $0.score } ?? true
 
+        // 🔥 CLAVE
+        canCloseGameOver = false
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            canCloseGameOver = true
+        }
+
         showGameOver = true
     }
 
-    private func currentChallengeID() -> ChallengeID {
 
-        switch (mode, level) {
-
-        case (.sin, .initLevel):
-            return .sumas_sin_iniciacion
-        case (.sin, .easy):
-            return .sumas_sin_facil
-        case (.sin, .normal):
-            return .sumas_sin_normal
-        case (.sin, .hard):
-            return .sumas_sin_dificil
-
-        case (.con, .initLevel):
-            return .sumas_con_iniciacion
-        case (.con, .easy):
-            return .sumas_con_facil
-        case (.con, .normal):
-            return .sumas_con_normal
-        case (.con, .hard):
-            return .sumas_con_dificil
-        }
-    }
 
 
 
@@ -584,287 +588,158 @@ struct SumasView: View {
 
     // MARK: - INFO FULL SCREEN (TABLAS – HEADER HOME STYLE + REAL BLUR)
 
-    private var infoOverlay: some View {
-        ZStack(alignment: .top) {
-
-            // FONDO
-            Color(red: 11/255, green: 15/255, blue: 20/255)
-                .ignoresSafeArea()
-
-            // 📜 SCROLL PRINCIPAL (PASA POR DEBAJO DEL HEADER)
-            ScrollView {
-                VStack(spacing: 24) {
-
-                    // ✅ TÍTULO FUERA DEL NOTCH
-                    Text("Cómo se juega")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.yellow)
-                        .padding(.top, 8)
-
-                    // IMAGEN
-                    Image("sumasnumeros")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 320)
-                        .cornerRadius(18)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                        .shadow(color: .black.opacity(0.45), radius: 10, y: 6)
-
-                    // TEXTO PRINCIPAL
-                    Text("""
-    Aparecen sumas en pantalla. La primera (azul) es la activa. Introduce el resultado.
-
-    Si aciertas, la operación se borra.
-
-    Si fallas, aparece una nueva operación como penalización.
-    """)
-                    .font(.body)
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
-
-                    // ⏱️ RECUADRO
-                    Text("⏱️ La partida acaba a los 60 segundos o cuando hay 10 operaciones en pantalla.")
-                        .font(.footnote)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white.opacity(0.08))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                                )
-                        )
-                        .padding(.horizontal, 28)
-
-                    Text("💪 Intenta superarte en cada partida.")
-                        .font(.footnote)
-                        .foregroundColor(.gray)
-
-                    // ✅ BOTÓN
-                    Button {
-                        showInfo = false
-                    } label: {
-                        Text("OK, entendido")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(16)
-                    }
-                    .padding(.horizontal, 32)
-                    .padding(.top, 16)
-                    .padding(.bottom, 32)
-                }
-                .padding(.top, 72) // espacio real para header + aire
-            }
-
-            // 🔝 HEADER FLOTANTE (SOLO BLUR + NOTCH)
-            ZStack {
-                VisualEffectBlur()
-                Color.black.opacity(0.15)
-            }
-            .frame(height: 88) // incluye notch / dynamic island
-            .ignoresSafeArea(edges: .top)
-            .zIndex(1)
-        }
+    private func videoAnimo(hits: Int) -> String {
+        
+        if hits <= 5 { return "elefante_saltarin" }
+        if hits <= 10 { return "nino_bailando" }
+        if hits <= 15 { return "joven_alegria" }
+        if hits <= 20 { return "perro_feliz" }
+        if hits <= 25 { return "gato_feliz" }
+        if hits <= 30 { return "bicho_feliz" }
+        if hits <= 35 { return "mono_aplausos" }
+        
+        if hits <= 40 { return "hombre_gesto_ok" }
+        if hits <= 45 { return "cerebro_llamas" }
+        if hits <= 50 { return "nino_sale_volando" }
+        if hits <= 55 { return "chimpace_bailando" }
+        if hits <= 60 { return "pequeno_superheroe" }
+        
+        // 🙂 MEDIO
+        if hits <= 65 { return "tortuga_cohete" }
+        if hits <= 70 { return "leopardo_corriendo" }
+        if hits <= 75 { return "panda_asustado" }
+        
+        // 🚀 ALTO
+        if hits <= 80 { return "astronauta" }
+        if hits <= 85 { return "cohete" }
+        
+        // 🏆 TOP
+        if hits <= 90 { return "jesucristo_aplausos" }
+        
+        return "jesucristo_aplausos"
     }
-
     
-    private func mensajeAnimo(_ hits: Int) -> String {
-
-        if hits == 0  { return "No pasa nada 💙 Vamos a intentarlo otra vez" }
-        if hits == 1  { return "Buen intento 💪 Cada partida cuenta" }
-        if hits == 2  { return "¡Bien! Poco a poco 🙂" }
-        if hits == 3  { return "¡Muy bien! Sigue así 👏" }
-        if hits == 4  { return "¡Muy bien! Vas mejorando 🚀" }
-        if hits == 5  { return "¡Muy bien! Buen comienzo 😄" }
-        if hits == 6  { return "¡Muy bien! Cada vez más rápido 🔥" }
-        if hits == 7  { return "¡Genial! Buena concentración 🧠" }
-        if hits == 8  { return "¡Genial! Ritmo sólido 💪" }
-        if hits == 9  { return "¡Muy bien! Buen control 👌" }
-
-        // 🔹 A partir de 10: ya se nota progreso real
-        if hits == 10 { return "¡Muy bien! Se nota el progreso 😄" }
-        if hits == 11 { return "¡Muy bien! Cada vez más seguro 🙂" }
-        if hits == 12 { return "¡Genial! Buen ritmo 🚀" }
-        if hits == 13 { return "¡Genial! Buen control 👏" }
-        if hits == 14 { return "¡Muy bien! Vas fuerte 💪" }
-
-        // 🔹 15–19: jugador sólido
-        if hits == 15 { return "¡Muy bien! Ritmo constante 💪" }
-        if hits == 16 { return "¡Muy bien! Buena seguridad 🙂" }
-        if hits == 17 { return "¡Genial! Gran concentración 🧠" }
-        if hits == 18 { return "¡Genial! Buen control 👏" }
-        if hits == 19 { return "¡Muy bien! Preparado para más 🚀" }
-
-        // 🔥 A partir de 20: nivel alto
-        if hits == 20 { return "¡Brutal! Nivel altísimo 🔥" }
-        if hits == 21 { return "¡Brutal! Muy sólido 💥" }
-        if hits == 22 { return "¡Bestial! Ritmo brutal 🔥" }
-        if hits == 23 { return "¡Bestial! Gran dominio 💪" }
-        if hits == 24 { return "¡Bestial! Muy fuerte 🧠" }
-
-        // 🏆 25–29: nivel pro
-        if hits == 25 { return "¡Nivel pro! Muy rápido 🚀" }
-        if hits == 26 { return "¡Nivel pro! Gran control 🎯" }
-        if hits == 27 { return "¡Nivel pro! Sin fallos 💥" }
-        if hits == 28 { return "¡Nivel pro! Precisión total 🎯" }
-        if hits == 29 { return "¡Nivel pro! Impresionante 🌟" }
-
-        // 🏆 30–34: sobresaliente
-        if hits == 30 { return "¡Sobresaliente! Ritmo altísimo 🏆" }
-        if hits == 31 { return "¡Sobresaliente! Mucha precisión 🎯" }
-        if hits == 32 { return "¡Sobresaliente! Gran seguridad 😎" }
-        if hits == 33 { return "¡Sobresaliente! Muy sólido 💪" }
-        if hits == 34 { return "¡Sobresaliente! Nivel top 🌟" }
-
-        // 🤖 35–39: máquina
-        if hits == 35 { return "¡Máquina! Esto ya es otro nivel 🤖" }
-        if hits == 36 { return "¡Máquina! Ritmo brutal 🔥" }
-        if hits == 37 { return "¡Máquina! Gran dominio 🧠" }
-        if hits == 38 { return "¡Máquina! Partidaza 💥" }
-        if hits == 39 { return "¡Máquina! Imparable 🚀" }
-
-        // 👑 40–44: leyenda
-        if hits == 40 { return "¡Leyenda! Partida histórica 👑" }
-        if hits == 41 { return "¡Leyenda! Dominio total 😎" }
-        if hits == 42 { return "¡Leyenda! Precisión increíble 🎯" }
-        if hits == 43 { return "¡Leyenda! Ritmo perfecto 🌟" }
-        if hits == 44 { return "¡Leyenda! Nivel máximo 🏆" }
-
-        // 🌟 45–49: élite
-        if hits == 45 { return "¡Élite! Juego perfecto 🔥" }
-        if hits == 46 { return "¡Élite! Control absoluto 🧠" }
-        if hits == 47 { return "¡Élite! Sin errores 💥" }
-        if hits == 48 { return "¡Élite! Brutal 😎" }
-        if hits == 49 { return "¡Élite! Imparable 🚀" }
-
-        // 🚀 50–59: fuera de lo normal
-        if hits == 50 { return "¡Increíble! Esto es otro planeta 🤯" }
-        if hits == 51 { return "¡Increíble! Nivel extremo 🔥" }
-        if hits == 52 { return "¡Increíble! Dominio total 💪" }
-        if hits == 53 { return "¡Increíble! Precisión perfecta 🎯" }
-        if hits == 54 { return "¡Increíble! Ritmo demencial 🚀" }
-        if hits == 55 { return "¡Increíble! Mente de acero 🧠" }
-        if hits == 56 { return "¡Increíble! Sin palabras 🤯" }
-        if hits == 57 { return "¡Increíble! Maestro absoluto 🏆" }
-        if hits == 58 { return "¡Increíble! Juego perfecto 🔥" }
-        if hits == 59 { return "¡Increíble! Casi imposible 😎" }
-        
-        if hits == 60 { return "👑 LEYENDA SUPREMA 👑 Dominio total 🤯🔥" }
-        if hits == 61 { return "👑 Leyenda suprema… esto es muy serio 😎" }
-        if hits == 62 { return "👑 Ritmo de auténtico campeón 🏆" }
-        if hits == 63 { return "👑 Precisión brutal 🎯" }
-        if hits == 64 { return "👑 Control absoluto 🧠" }
-        if hits == 65 { return "👑 Nivel imposible para la mayoría 🚀" }
-        if hits == 66 { return "👑 Esto ya es otra liga 🔥" }
-        if hits == 67 { return "👑 Sin errores, sin miedo 💪" }
-        if hits == 68 { return "👑 Partida legendaria 😎" }
-        if hits == 69 { return "👑 Dominio total del juego 🏆" }
-        
-        if hits == 70 { return "🚀 NIVEL MÍTICO 🚀 Impresionante 🤯" }
-        if hits == 71 { return "🚀 Velocidad y precisión perfectas 🔥" }
-        if hits == 72 { return "🚀 Esto roza lo imposible 😱" }
-        if hits == 73 { return "🚀 Mente matemática total 🧠" }
-        if hits == 74 { return "🚀 Juego casi perfecto 🎯" }
-        if hits == 75 { return "🚀 Brutal. Muy pocos llegan aquí 💥" }
-        if hits == 76 { return "🚀 Control absoluto del ritmo 😎" }
-        if hits == 77 { return "🚀 Partida de élite total 🏆" }
-        if hits == 78 { return "🚀 Nivel de competición profesional 🔥" }
-        if hits == 79 { return "🚀 Matemáticas en estado puro 🤯" }
-
-
-        // 👑 80+
-        return "🌟 HISTÓRICO 🌟 Nivel fuera de lo normal 👑🔥"
-    }
-
-
-    // MARK: - GAME OVER (sin cambios)
+    
+    
 
     private var gameOverOverlay: some View {
         GeometryReader { geo in
             ZStack {
-
                 Color.black.opacity(0.6)
                     .ignoresSafeArea()
-                    .onTapGesture {
-                        showGameOver = false
-                    }
 
                 VStack {
                     Spacer()
-
-                    VStack(spacing: 12) {
-
-                        Text("Fin de la partida")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-
-                        Text("Aciertos: \(hits)")
-                            .font(.title3)
-                            .foregroundColor(.gray)
-
-                        Text(mensajeAnimo(hits))
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 8)
+                    
+                    VStack(spacing: 24) {
                         
-                        if qualifiesForRanking {
-
-                            Text(isNewNumberOne ? "🏆 ¡NUEVO Nº1!" : "🎉 ¡NUEVO TOP 5!")
-                                .font(.title3)
-                                .fontWeight(.bold)
-                                .foregroundColor(.yellow)
-
-                            Button {
-                                showGameOver = false
-                                showAddRanking = true
-                            } label: {
-                                Text("Añadir marca")
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 12)
-                                    .background(Color.yellow)
-                                    .foregroundColor(.black)
-                                    .cornerRadius(14)
-                            }
+                        // 🎯 SCORE
+                        HStack(spacing: 10) {
+                            Image("target")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                            
+                            Text("\(hits)")
+                                .font(.system(size: 36, weight: .bold))
+                                .foregroundColor(.white)
                         }
+                        
+                        // 🎬 MP4 (AQUÍ)
+                        VideoLoopView(videoName: videoAnimo(hits: hits))
+                            .frame(width: 140, height: 140)
+                        
+                        // 🏆 MEDALLA
+                        if qualifiesForRanking {
+                            Image(medalImageName())
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 80)
+                        }
+                        
+                        
+                        // ✍️ INPUT
+                        if qualifiesForRanking {
+                            ZStack {
+                                if playerName.isEmpty {
+                                    Text("ABC")
+                                        .foregroundColor(.gray)
+                                        .font(.title2)
+                                }
 
+                                TextField("", text: $playerName)
+                                    .multilineTextAlignment(.center)
+                                    .font(.title2)
+                                    .foregroundColor(.black)
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(14)
+                            .frame(width: geo.size.width * 0.6)
+                        }
+                        
+                        
+                        // 🔵 BOTÓN OK
+                        Button {
+                            showGameOver = false
 
-                        Text("Pulsa fuera para cerrar")
-                            .font(.footnote)
-                            .foregroundColor(.gray.opacity(0.7))
+                            if qualifiesForRanking, let challenge = currentChallenge {
+                                
+                                let (newRanking, index) = RankingManager.shared.addEntry(
+                                    initials: playerName,
+                                    score: hits,
+                                    challenge: challenge
+                                )
+                                
+                                ranking = newRanking
+                                lastRankingIndex = index
+                                
+                                navigateToRanking = true
+                            }
+
+                        } label: {
+                            Text("OK")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(16)
+                        }
+                        .padding(.horizontal, 40)
+                        .disabled(!canCloseGameOver || (qualifiesForRanking && playerName.isEmpty))
+                        
                     }
-
-                    .padding(32)
-                    .frame(
-                        width: min(geo.size.width - 48, 420),
-                        height: geo.size.height * 0.55
-                    )
+                    .padding(28)
+                    .frame(width: min(geo.size.width - 48, 360))
                     .background(Color(red: 12/255, green: 18/255, blue: 28/255))
                     .cornerRadius(24)
-
+                    
                     Spacer()
                 }
             }
         }
     }
+    
+    private func medalImageName() -> String {
+        guard qualifiesForRanking else { return "" }
 
+        let sorted = (ranking + [RankingEntry(initials: "", score: hits)])
+            .sorted { $0.score > $1.score }
+        
+        let position = sorted.firstIndex { $0.score <= hits } ?? 0
+
+        switch position + 1 {
+        case 1: return "medalla_1"
+        case 2: return "medalla_2"
+        case 3: return "medalla_3"
+        case 4: return "medalla_4"
+        case 5: return "medalla_5"
+        default: return ""
+        }
+    }
+    
+    
     // MARK: - UI
 
     private func keyButton(label: String, action: @escaping () -> Void) -> some View {
